@@ -1,0 +1,121 @@
+//ESPGoated
+#include <Wire.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+
+#define SCREEN_WIDTH 128
+#define SCREEN_HEIGHT 64
+#define OLED_RESET    -1
+
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
+
+// UART to Arduino
+#define UNO_RX 16
+#define UNO_TX 17
+
+// Button pin on ESP32
+#define BUTTON_PIN 4
+
+String inputString = "";
+bool stringComplete = false;
+
+unsigned long screenOnTime = 0;
+bool screenActive = true;
+
+bool lastButtonState = HIGH;
+
+void setup() {
+  Serial.begin(115200);
+  Serial1.begin(9600, SERIAL_8N1, UNO_RX, UNO_TX);
+
+  pinMode(BUTTON_PIN, INPUT_PULLUP);
+
+  // Initialize OLED
+  if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
+    Serial.println("SSD1306 init failed");
+    for(;;);
+  }
+
+  display.clearDisplay();
+  display.setTextSize(1);
+  display.setTextColor(SSD1306_WHITE);
+  display.setCursor(0, 0);
+  display.println("Waiting for data...");
+  display.display();
+
+  screenActive = true;
+  screenOnTime = millis();
+}
+
+void turnScreenOff() {
+  display.clearDisplay();
+  display.display();  // All black
+  screenActive = false;
+}
+
+void turnScreenOn() {
+  screenActive = true;
+  screenOnTime = millis();
+}
+
+void loop() {
+
+  // ----------------------------------------------------
+  // ESP32 BUTTON HANDLING
+  // ----------------------------------------------------
+  bool buttonState = digitalRead(BUTTON_PIN);
+
+  // Detect button press (falling edge)
+  if (buttonState == LOW && lastButtonState == HIGH) {
+
+    // Turn screen on for 1 minute
+    turnScreenOn();
+
+    // Send command to UNO to activate relay
+    Serial1.println("RELAY_ON");
+    Serial.println("Sent RELAY_ON to UNO");
+  }
+
+  lastButtonState = buttonState;
+
+  // ----------------------------------------------------
+  // READ SERIAL FROM UNO
+  // ----------------------------------------------------
+  while (Serial1.available()) {
+    char c = (char)Serial1.read();
+    if (c == '\n') {
+      stringComplete = true;
+      break;
+    } else {
+      inputString += c;
+    }
+  }
+
+  // ----------------------------------------------------
+  // DISPLAY SENSOR DATA IF SCREEN IS ACTIVE
+  // ----------------------------------------------------
+  if (stringComplete) {
+    Serial.println(inputString);
+
+    if (screenActive) {
+      display.clearDisplay();
+      display.setCursor(0, 0);
+      display.setTextSize(1);
+      display.setTextColor(SSD1306_WHITE);
+
+      display.println("Sensor Data:");
+      display.println(inputString);
+      display.display();
+    }
+
+    inputString = "";
+    stringComplete = false;
+  }
+
+  // ----------------------------------------------------
+  // SCREEN TIMEOUT (1 minute)
+  // ----------------------------------------------------
+  if (screenActive && (millis() - screenOnTime > 60000)) {
+    turnScreenOff();
+  }
+}
