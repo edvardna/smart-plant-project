@@ -78,4 +78,4 @@ The goal of this project was to:
 
 ## 👤 Author
 Edvárd Nagy  
-Electrical Engineering Student | Embedded Systems | IoT | Automation
+Kevin Kovero
